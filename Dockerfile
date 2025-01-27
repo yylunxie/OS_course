@@ -22,6 +22,7 @@ RUN wget https://github.com/Xueyi-Chen-David/pintos/archive/refs/heads/main.zip 
     rm main.zip
 
 WORKDIR /home/pintos/utils
+RUN chmod -R +x /home/pintos/utils
 # RUN make
 # ENV PATH="/pintos/src/utils:$PATH"
 
