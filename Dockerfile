@@ -7,18 +7,21 @@ RUN apt update && apt install -y --no-install-recommends \
     gdb \
     qemu-system-x86 \
     nasm \
+    vim\
     perl \
     python3 \
     texinfo \
+    unzip \ 
     wget && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /home
-RUN wget https://www.stanford.edu/class/cs140/projects/pintos/pintos.tar.gz --no-check-certificate && \
-    tar -xzf pintos.tar.gz && \
-    rm pintos.tar.gz
+RUN wget https://github.com/Xueyi-Chen-David/pintos/archive/refs/heads/main.zip --no-check-certificate && \
+    unzip main.zip && \
+    mv pintos-main pintos && \
+    rm main.zip
 
-WORKDIR /home/pintos/src/utils
+WORKDIR /home/pintos/utils
 # RUN make
 # ENV PATH="/pintos/src/utils:$PATH"
 
