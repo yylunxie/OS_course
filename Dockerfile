@@ -23,11 +23,12 @@ RUN wget https://github.com/Xueyi-Chen-David/pintos/archive/refs/heads/main.zip 
 
 WORKDIR /home/pintos/utils
 RUN chmod -R +x /home/pintos/utils
-# RUN make
-# ENV PATH="/pintos/src/utils:$PATH"
+RUN ln -s $(which qemu-system-x86_64) /usr/local/bin/qemu
+RUN ln -s /home/pintos/utils/pintos /usr/local/bin/pintos
+RUN cp /home/pintos/utils/Pintos.pm /usr/local/bin
 
-# WORKDIR /home/pintos/src/threads
-# RUN make clean && make
+WORKDIR /home/pintos/threads
+RUN make clean && make
 
-# WORKDIR /home
+WORKDIR /home
 CMD ["/bin/bash"]
