@@ -23,8 +23,9 @@ RUN wget https://github.com/Xueyi-Chen-David/pintos/archive/refs/heads/main.zip 
 
 WORKDIR /home/pintos/utils
 RUN chmod -R +x /home/pintos/utils
+RUN mv /home/pintos/utils/* /usr/local/bin/
 RUN ln -s $(which qemu-system-x86_64) /usr/local/bin/qemu
-RUN ln -s /home/pintos/utils/* /usr/local/bin/
+
 RUN rm -r /home/pintos
 
 WORKDIR /home
