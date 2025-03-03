@@ -2,8 +2,7 @@ version: '3.8'
 
 services:
   pintos:
-    #image: pintos #davidchen871/pintos
-    build: .
+    image: davidchen871/pintos
     container_name: pintos
     stdin_open: true  
     tty: true         
