@@ -1,4 +1,4 @@
-FROM ubuntu:16.04
+FROM ubuntu:22.04
 
 
 RUN apt update && apt install -y --no-install-recommends \
@@ -29,4 +29,4 @@ RUN ln -s $(which qemu-system-x86_64) /usr/local/bin/qemu
 RUN rm -r /home/pintos
 
 WORKDIR /home
-CMD ["/bin/bash"]
+CMD ["sleep", "infinity"]
