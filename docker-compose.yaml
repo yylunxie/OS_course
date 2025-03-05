@@ -9,3 +9,5 @@ services:
     restart: no       
     #volumes:
     # - [your_source_code_path]:/home/pintos
+    environment:
+      - PINTOS_DIR=/home/pintos
