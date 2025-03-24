@@ -1,0 +1,13 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "C/C++ Runner: Debug Session",
+      "type": "lldb",
+      "request": "launch",
+      "args": [],
+      "cwd": "/Users/xieyulun/Developer/sandbox/course/OS/pintos/userprog",
+      "program": "/Users/xieyulun/Developer/sandbox/course/OS/pintos/userprog/build/Debug/outDebug"
+    }
+  ]
+}

@@ -19,9 +19,9 @@
 #include "threads/vaddr.h"
 #include "threads/malloc.h"
 
-static thread_func start_process NO_RETURN;
-static bool load (const char *cmdline, void (**eip) (void), void **esp);
-static void push_argument(void **esp, char *cmdline);
+static thread_func start_process NO_RETURN;  // A function that will start a new process
+static bool load (const char *cmdline, void (**eip) (void), void **esp);  // Loads the user program from a file.
+static void push_argument(void **esp, char *cmdline);  // Prepares the stack with command-line arguments.
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
@@ -62,7 +62,52 @@ process_execute (const char *file_name)
 // lab01 Hint - This is the mainly function you have to trace.
 static void push_argument(void **esp, char *cmdline)
 {
+  char *argv[128];
+  int argc = 0;
+  char *token, *save_ptr;
 
+  // Spilt the command line into argv[]
+  for (token = strtok_r(cmdline, " ", &save_ptr); token != NULL;
+   token = strtok_r(NULL, " ", &save_ptr)) {
+    argv[argc++] = token;
+  }
+
+  // Push parameters from right to left
+  for (int i = argc - 1; i >= 0; i--) {
+    *esp -= strlen(argv[i]) + 1;
+    memcpy(*esp, argv[i], strlen(argv[i] + 1));
+    argv[i] = *esp;
+  }
+
+  // Word alignment
+  uint8_t word_align = (uintptr_t) *esp % 4;
+  if (word_align) {
+    *esp -= word_align;
+    memset(*esp, 0, word_align);
+  }
+  
+  // Push ptrs to argv
+  *esp -= sizeof(char *);
+  memset(*esp, 0, sizeof(char *));  // NULL end
+  for (int i = argc - 1; i >= 0; i--) {
+    *esp -= sizeof(char *);
+    memcpy(*esp, &argv[i], sizeof(char *));
+  }
+
+  /* Push address of argv itself
+     Make argv become the second parameter of main(int argc, char *argv[])
+  */
+  char **argv_ptr = *esp;
+  *esp -= sizeof(char **);
+  memcpy(*esp, &argv_ptr, sizeof(char **));
+
+  // Push argc
+  *esp -= sizeof(int);
+  memcpy(*esp, &argc, sizeof(int));
+
+  // Push return address
+  *esp -= sizeof(void *);
+  memset(*esp, 0, sizeof(void *));  // Return address = 0
 }
 
 /* A thread function that loads a user process and starts it
