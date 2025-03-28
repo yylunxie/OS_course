@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "threads/synch.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -89,11 +90,17 @@ struct thread
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
-
+    int exit_status;
+   
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
+
+    struct semaphore load_sema;
+    struct thread *parent;          /* Pointer to parent thread */
+
 #ifdef USERPROG
+#warning "USERPROG is defined!"
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
 #endif
@@ -120,6 +127,7 @@ void thread_block (void);
 void thread_unblock (struct thread *);
 
 struct thread *thread_current (void);
+struct thread *get_thread_by_tid(tid_t tid);
 tid_t thread_tid (void);
 const char *thread_name (void);
 

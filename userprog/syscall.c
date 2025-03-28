@@ -43,7 +43,7 @@ static void (*syscalls[MAX_SYSCALL])(struct intr_frame *) = {
   [SYS_HALT] = sys_halt,
   // [SYS_EXIT] = sys_exit,
   // [SYS_EXEC] = sys_exec,
-  // [SYS_WAIT] = sys_wait,
+  [SYS_WAIT] = sys_wait,
   // [SYS_CREATE] = sys_create,
   // [SYS_REMOVE] = sys_remove,
   // [SYS_OPEN] = sys_open,
@@ -74,5 +74,54 @@ void sys_halt(void)
 static void syscall_handler (struct intr_frame *f UNUSED) 
 {
   printf ("system call!\n");
-  thread_exit();
+  int syscall_num = *(int *) f->esp;
+
+  switch (syscall_num)
+  {
+  case SYS_WRITE:
+    printf("DEBUG: syscall_number = %d\n", syscall_num);
+    sys_write(f);
+    break;
+  
+  default:
+    printf("DEBUG: Unknown system call: %d\n", syscall_num);
+    thread_exit();
+  }
+}
+
+void sys_exit(struct intr_frame* f)
+{
+  struct thread *cur = thread_current();
+
+  int status = *(int *)(f->esp + 4);
+  cur->exit_status = status;  // 設定 exit status
+  printf("%s: exit(%d)\n", cur->name, status);
+  thread_exit();  // 呼叫 thread_exit() 讓 process 退出
+}
+
+struct write_args {
+  int fd;
+  const void *buffer;
+  unsigned size;
+};
+
+void sys_write(struct intr_frame* f){
+  struct write_args *args = (struct write_args *) f->esp;
+  printf("DEBUG: sys_write called with fd=%d, buffer=%p, size=%d\n", 
+           args->fd, args->buffer, args->size);
+
+  if (!is_user_vaddr(args->buffer)) {
+    f->eax = -1;
+    return;
+  }
+  if (args->fd == 1){
+    putbuf(args->buffer, args->size);  // 輸出到 Pintos console
+    f->eax = args->size;  // 回傳成功寫入的位元組數量
+    return;
+  }
+
+  // f->eax = file_write(args->fd, args->buffer, args->size);
+  printf("DEBUG: invalid fd %d\n", args->fd);
+  f->eax = -1;
+  return;
 }

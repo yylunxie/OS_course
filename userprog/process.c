@@ -33,6 +33,7 @@ process_execute (const char *file_name)
   char *fn_copy, *fn_copy2;
   tid_t tid;
 
+
   /* Make a copy of FILE_NAME.
     Otherwise there's a race between the caller and load(). */
   fn_copy = malloc(strlen(file_name)+1);
@@ -48,12 +49,23 @@ process_execute (const char *file_name)
   char *save_ptr;
   fn_copy = strtok_r(fn_copy, " ", &save_ptr);
 
+
   tid = thread_create(fn_copy, PRI_DEFAULT, start_process, fn_copy2);
+  // printf("%d\n", tid);
+  struct thread *t = thread_current(); 
+  sema_down(&t->load_sema);
+
   free(fn_copy);
 
   if (tid == TID_ERROR){
     free (fn_copy2); 
     return TID_ERROR;
+  }
+  else {
+    struct thread *child = get_thread_by_tid(tid);
+    if (child != NULL) {
+      child->parent = thread_current();  // 記錄 parent
+    }
   }
 
   return tid;
@@ -62,6 +74,7 @@ process_execute (const char *file_name)
 // lab01 Hint - This is the mainly function you have to trace.
 static void push_argument(void **esp, char *cmdline)
 {
+  // printf("DEBUG: push_arguments() called with file_name\n");
   char *argv[128];
   int argc = 0;
   char *token, *save_ptr;
@@ -70,26 +83,34 @@ static void push_argument(void **esp, char *cmdline)
   for (token = strtok_r(cmdline, " ", &save_ptr); token != NULL;
    token = strtok_r(NULL, " ", &save_ptr)) {
     argv[argc++] = token;
+    // printf("DEBUG: argv[%d] = %s\n", argc - 1, argv[argc - 1]);
   }
+
+   // 讓 argv[argc] = NULL
+  argv[argc] = NULL;
+  // printf("DEBUG: Total argc = %d\n", argc);
+
 
   // Push parameters from right to left
   for (int i = argc - 1; i >= 0; i--) {
     *esp -= strlen(argv[i]) + 1;
-    memcpy(*esp, argv[i], strlen(argv[i] + 1));
+    memcpy(*esp, argv[i], strlen(argv[i]) + 1);
     argv[i] = *esp;
   }
 
-  // Word alignment
+  /*Word alignment*/ 
   uint8_t word_align = (uintptr_t) *esp % 4;
   if (word_align) {
-    *esp -= word_align;
-    memset(*esp, 0, word_align);
+    *esp -= (4 - word_align);
+    memset(*esp, 0, (4 - word_align));
   }
   
   // Push ptrs to argv
   *esp -= sizeof(char *);
   memset(*esp, 0, sizeof(char *));  // NULL end
+  
   for (int i = argc - 1; i >= 0; i--) {
+    // printf("DEBUG: argv[%d] = %p, value = %s\n", i, (void *)argv[i], (char *)argv[i]);
     *esp -= sizeof(char *);
     memcpy(*esp, &argv[i], sizeof(char *));
   }
@@ -101,23 +122,30 @@ static void push_argument(void **esp, char *cmdline)
   *esp -= sizeof(char **);
   memcpy(*esp, &argv_ptr, sizeof(char **));
 
-  // Push argc
+  /* Push argc */
   *esp -= sizeof(int);
   memcpy(*esp, &argc, sizeof(int));
 
-  // Push return address
+
   *esp -= sizeof(void *);
   memset(*esp, 0, sizeof(void *));  // Return address = 0
+  // printf("DEBUG: Finished pushing arguments. ESP = %p\n", *esp);
 }
 
 /* A thread function that loads a user process and starts it
    running. */
 static void start_process (void *file_name_)
 {
+  /* printf("DEBUG: start_process() called with file_name=%s\n", (char *)file_name_); */
+
+  struct thread *t = thread_current(); // child thread
+
+
   char *file_name = file_name_;
   struct intr_frame if_;
   bool success;
-
+  printf("DEBUG: Checking file_name validity: %p -> %s\n", file_name, file_name);
+  
   char *fn_copy = malloc(strlen(file_name) + 1);
   strlcpy(fn_copy, file_name, strlen(file_name) + 1);
 
@@ -130,15 +158,19 @@ static void start_process (void *file_name_)
 
   char *save_ptr;
   file_name = strtok_r(file_name, " ", &save_ptr);
+  // printf("DEBUG: Calling load() with file_name=%s\n", file_name);
   success = load (file_name, &if_.eip, &if_.esp);
   if(success)
   {
     push_argument (&if_.esp, fn_copy);
+    
   }else
   {
     /* If load failed, quit. */
     thread_exit ();
   }
+
+  sema_up(&t->parent->load_sema);
 
   free(fn_copy);
   

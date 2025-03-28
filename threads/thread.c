@@ -4,6 +4,7 @@
 #include <random.h>
 #include <stdio.h>
 #include <string.h>
+#include <list.h>
 #include "threads/flags.h"
 #include "threads/interrupt.h"
 #include "threads/intr-stubs.h"
@@ -11,6 +12,8 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "threads/synch.h"
+
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -92,6 +95,7 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
+  
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -268,6 +272,18 @@ thread_current (void)
   return t;
 }
 
+struct 
+thread *get_thread_by_tid(tid_t tid) {
+    struct list_elem *e;
+    for (e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e)) {
+        struct thread *t = list_entry(e, struct thread, allelem);
+        if (t->tid == tid) {
+            return t;  // 找到對應的 thread
+        }
+    }
+    return NULL;  // 沒找到
+}
+
 /* Returns the running thread's tid. */
 tid_t
 thread_tid (void) 
@@ -415,6 +431,9 @@ idle (void *idle_started_ UNUSED)
 }
 
 /* Function used as the basis for a kernel thread. */
+
+
+
 static void
 kernel_thread (thread_func *function, void *aux) 
 {
@@ -467,6 +486,7 @@ init_thread (struct thread *t, const char *name, int priority)
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);
+  sema_init (&t->load_sema, 0);
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
