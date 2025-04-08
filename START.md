@@ -27,7 +27,9 @@ pintos --qemu --filesys-size=2 -- -q -f run 'echo hello'
 ```
 
 ```bash
-pintos --qemu --filesys-size=2 -p ./tests/userprog/args-many -a args-many -- -q -f run 'args-many'
+pintos --qemu --filesys-size=2 -p ./tests/userprog/args-single -a args-single -- -q -f run 'args-single'
+
+pintos --qemu --filesys-size=2 -p ./tests/userprog/write-normal -a write-normal -- -q -f run 'write-normal'
 
 pintos --qemu --gdb --filesys-size=2 -p ./tests/userprog/write-normal -a write-normal -- -q -f run 'write-normal'
 ```
