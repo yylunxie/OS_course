@@ -52,21 +52,32 @@ process_execute (const char *file_name)
 
   tid = thread_create(fn_copy, PRI_DEFAULT, start_process, fn_copy2);
   // printf("%d\n", tid);
+
+  if (tid == TID_ERROR){
+    free(fn_copy2); 
+    free(fn_copy);
+    return TID_ERROR;
+  }
+  
+  struct thread *child = get_thread_by_tid(tid);
+  if (child != NULL) {
+    child->parent = thread_current();  // 在 sema_down() 之前就設好
+  }
   struct thread *t = thread_current(); 
   sema_down(&t->load_sema);
 
   free(fn_copy);
 
-  if (tid == TID_ERROR){
-    free (fn_copy2); 
-    return TID_ERROR;
-  }
-  else {
-    struct thread *child = get_thread_by_tid(tid);
-    if (child != NULL) {
-      child->parent = thread_current();  // 記錄 parent
-    }
-  }
+  // if (tid == TID_ERROR){
+  //   free (fn_copy2); 
+  //   return TID_ERROR;
+  // }
+  // else {
+  //   struct thread *child = get_thread_by_tid(tid);
+  //   if (child != NULL) {
+  //     child->parent = thread_current();  // 記錄 parent
+  //   }
+  // }
 
   return tid;
 }
@@ -87,49 +98,48 @@ static void push_argument(void **esp, char *cmdline)
   }
 
    // 讓 argv[argc] = NULL
-  argv[argc] = NULL;
+  // argv[argc] = NULL;
   // printf("DEBUG: Total argc = %d\n", argc);
 
 
   // Push parameters from right to left
   for (int i = argc - 1; i >= 0; i--) {
-    *esp -= strlen(argv[i]) + 1;
-    memcpy(*esp, argv[i], strlen(argv[i]) + 1);
-    argv[i] = *esp;
+    size_t len = strlen(argv[i]) + 1;
+    *esp -= len;
+    memcpy(*esp, argv[i], len);
+    argv[i] = *esp;  // Save the stack address of the string
   }
 
   /*Word alignment*/ 
   uint8_t word_align = (uintptr_t) *esp % 4;
-  if (word_align) {
-    *esp -= (4 - word_align);
-    memset(*esp, 0, (4 - word_align));
+  uintptr_t align = (uintptr_t)*esp % 4;
+  if (align) {
+    *esp -= align;
+    memset(*esp, 0, align);
   }
   
-  // Push ptrs to argv
-  *esp -= sizeof(char *);
-  memset(*esp, 0, sizeof(char *));  // NULL end
-  
-  for (int i = argc - 1; i >= 0; i--) {
-    // printf("DEBUG: argv[%d] = %p, value = %s\n", i, (void *)argv[i], (char *)argv[i]);
-    *esp -= sizeof(char *);
-    memcpy(*esp, &argv[i], sizeof(char *));
-  }
-
-  /* Push address of argv itself
-     Make argv become the second parameter of main(int argc, char *argv[])
-  */
-  char **argv_ptr = *esp;
-  *esp -= sizeof(char **);
-  memcpy(*esp, &argv_ptr, sizeof(char **));
-
-  /* Push argc */
-  *esp -= sizeof(int);
-  memcpy(*esp, &argc, sizeof(int));
-
-
-  *esp -= sizeof(void *);
-  memset(*esp, 0, sizeof(void *));  // Return address = 0
-  // printf("DEBUG: Finished pushing arguments. ESP = %p\n", *esp);
+   // Step 4: Push a NULL sentinel (argv[argc])
+   *esp -= sizeof(char *);
+   *(char **)*esp = NULL;
+ 
+   // Step 5: Push argv[i] addresses
+   for (int i = argc - 1; i >= 0; i--) {
+     *esp -= sizeof(char *);
+     memcpy(*esp, &argv[i], sizeof(char *));
+   }
+ 
+   // Step 6: Push argv (pointer to argv[0])
+   char **argv_ptr = (char **)*esp;
+   *esp -= sizeof(char **);
+   memcpy(*esp, &argv_ptr, sizeof(char **));
+ 
+   // Step 7: Push argc
+   *esp -= sizeof(int);
+   memcpy(*esp, &argc, sizeof(int));
+ 
+   // Step 8: Push fake return address
+   *esp -= sizeof(void *);
+   *(void **)*esp = 0;
 }
 
 /* A thread function that loads a user process and starts it

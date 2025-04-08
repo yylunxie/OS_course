@@ -100,7 +100,7 @@ struct thread
     struct thread *parent;          /* Pointer to parent thread */
 
 #ifdef USERPROG
-#warning "USERPROG is defined!"
+// #warning "USERPROG is defined!"
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
 #endif
