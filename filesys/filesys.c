@@ -45,8 +45,22 @@ filesys_done (void)
 bool
 filesys_create (const char *name, off_t initial_size) 
 {
+  // Debug start
+  // printf("DEBUG: filesys_create() called with name = %s, size = %d\n", name, initial_size);
+  //Debug end
   block_sector_t inode_sector = 0;
   struct dir *dir = dir_open_root ();
+  // Debug start
+  // if (dir == NULL) {
+  //   printf("DEBUG: dir_open_root() failed!\n");
+  //   return false;
+  // }
+  // if (!free_map_allocate(1, &inode_sector)) {
+  //   printf("DEBUG: free_map_allocate() failed!\n");
+  //   dir_close(dir);
+  //   return false;
+  // }
+  // Debug end
   bool success = (dir != NULL
                   && free_map_allocate (1, &inode_sector)
                   && inode_create (inode_sector, initial_size)
@@ -54,7 +68,7 @@ filesys_create (const char *name, off_t initial_size)
   if (!success && inode_sector != 0) 
     free_map_release (inode_sector, 1);
   dir_close (dir);
-
+  // printf("DEBUG: filesys_create() success!\n");
   return success;
 }
 

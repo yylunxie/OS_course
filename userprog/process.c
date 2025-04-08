@@ -61,85 +61,69 @@ process_execute (const char *file_name)
   
   struct thread *child = get_thread_by_tid(tid);
   if (child != NULL) {
-    child->parent = thread_current();  // 在 sema_down() 之前就設好
+    child->parent = thread_current();  // 先設定 parent
+    sema_down(&child->load_sema);      // 等 child load 完
   }
-  struct thread *t = thread_current(); 
-  sema_down(&t->load_sema);
 
   free(fn_copy);
-
-  // if (tid == TID_ERROR){
-  //   free (fn_copy2); 
-  //   return TID_ERROR;
-  // }
-  // else {
-  //   struct thread *child = get_thread_by_tid(tid);
-  //   if (child != NULL) {
-  //     child->parent = thread_current();  // 記錄 parent
-  //   }
-  // }
-
   return tid;
 }
 
+#define MAX_ARGS 128
+#define STACK_LIMIT ((void *) 0x08048000)
 // lab01 Hint - This is the mainly function you have to trace.
 static void push_argument(void **esp, char *cmdline)
 {
-  // printf("DEBUG: push_arguments() called with file_name\n");
-  char *argv[128];
+  char *argv[MAX_ARGS];
   int argc = 0;
   char *token, *save_ptr;
 
-  // Spilt the command line into argv[]
+  // Step 1: 使用 strtok_r 將 command line 分割成 argv[]
   for (token = strtok_r(cmdline, " ", &save_ptr); token != NULL;
-   token = strtok_r(NULL, " ", &save_ptr)) {
-    argv[argc++] = token;
-    // printf("DEBUG: argv[%d] = %s\n", argc - 1, argv[argc - 1]);
+       token = strtok_r(NULL, " ", &save_ptr)) {
+      argv[argc++] = token;
   }
 
-   // 讓 argv[argc] = NULL
-  // argv[argc] = NULL;
-  // printf("DEBUG: Total argc = %d\n", argc);
-
-
-  // Push parameters from right to left
+  // Step 2: 將每個參數字串壓入 stack，並記下其位置
+  char *arg_ptrs[MAX_ARGS];  // 記錄壓入 stack 的字串位址
   for (int i = argc - 1; i >= 0; i--) {
-    size_t len = strlen(argv[i]) + 1;
-    *esp -= len;
-    memcpy(*esp, argv[i], len);
-    argv[i] = *esp;  // Save the stack address of the string
+      int len = strlen(argv[i]) + 1;
+      *esp -= len;
+      ASSERT(*esp >= STACK_LIMIT);  // 防止 stack overflow
+      memcpy(*esp, argv[i], len);
+      arg_ptrs[i] = *esp;
   }
 
-  /*Word alignment*/ 
-  uint8_t word_align = (uintptr_t) *esp % 4;
-  uintptr_t align = (uintptr_t)*esp % 4;
-  if (align) {
-    *esp -= align;
-    memset(*esp, 0, align);
+  // Step 3: 對齊到 4-byte boundary
+  *esp = (void *)((uintptr_t)(*esp) & 0xfffffffc);
+
+  // Step 4: 壓入 null sentinel
+  *esp -= sizeof(char *);
+  ASSERT(*esp >= STACK_LIMIT);
+  *(char **)(*esp) = NULL;
+
+  // Step 5: 壓入 argv[i] 的指標（由大到小）
+  for (int i = argc - 1; i >= 0; i--) {
+      *esp -= sizeof(char *);
+      ASSERT(*esp >= STACK_LIMIT);
+      *(char **)(*esp) = arg_ptrs[i];
   }
-  
-   // Step 4: Push a NULL sentinel (argv[argc])
-   *esp -= sizeof(char *);
-   *(char **)*esp = NULL;
- 
-   // Step 5: Push argv[i] addresses
-   for (int i = argc - 1; i >= 0; i--) {
-     *esp -= sizeof(char *);
-     memcpy(*esp, &argv[i], sizeof(char *));
-   }
- 
-   // Step 6: Push argv (pointer to argv[0])
-   char **argv_ptr = (char **)*esp;
-   *esp -= sizeof(char **);
-   memcpy(*esp, &argv_ptr, sizeof(char **));
- 
-   // Step 7: Push argc
-   *esp -= sizeof(int);
-   memcpy(*esp, &argc, sizeof(int));
- 
-   // Step 8: Push fake return address
-   *esp -= sizeof(void *);
-   *(void **)*esp = 0;
+
+  // Step 6: 壓入 argv（char** 指向 argv[0]）
+  char **argv_start = (char **)*esp;
+  *esp -= sizeof(char **);
+  ASSERT(*esp >= STACK_LIMIT);
+  *(char ***)(*esp) = argv_start;
+
+  // Step 7: 壓入 argc（參數數量）
+  *esp -= sizeof(int);
+  ASSERT(*esp >= STACK_LIMIT);
+  *(int *)(*esp) = argc;
+
+  // Step 8: 壓入假 return address（一般用 0）
+  *esp -= sizeof(void *);
+  ASSERT(*esp >= STACK_LIMIT);
+  *(void **)(*esp) = NULL;
 }
 
 /* A thread function that loads a user process and starts it
@@ -154,10 +138,16 @@ static void start_process (void *file_name_)
   char *file_name = file_name_;
   struct intr_frame if_;
   bool success;
-  printf("DEBUG: Checking file_name validity: %p -> %s\n", file_name, file_name);
   
-  char *fn_copy = malloc(strlen(file_name) + 1);
-  strlcpy(fn_copy, file_name, strlen(file_name) + 1);
+  // char *fn_copy = malloc(strlen(file_name) + 1);
+  // strlcpy(fn_copy, file_name, strlen(file_name) + 1);
+  char *cmdline_copy = malloc(strlen(file_name) + 1);
+  if (cmdline_copy == NULL)
+    thread_exit();
+  strlcpy(cmdline_copy, file_name, strlen(file_name) + 1);
+
+  char *save_ptr;
+  char *program_name = strtok_r(cmdline_copy, " ", &save_ptr);
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
@@ -166,13 +156,13 @@ static void start_process (void *file_name_)
   if_.eflags = FLAG_IF | FLAG_MBS;
 
 
-  char *save_ptr;
-  file_name = strtok_r(file_name, " ", &save_ptr);
-  // printf("DEBUG: Calling load() with file_name=%s\n", file_name);
-  success = load (file_name, &if_.eip, &if_.esp);
+  // char *save_ptr;
+  // file_name = strtok_r(file_name, " ", &save_ptr);
+
+  success = load (program_name, &if_.eip, &if_.esp);
   if(success)
   {
-    push_argument (&if_.esp, fn_copy);
+    push_argument (&if_.esp, file_name);
     
   }else
   {
@@ -180,9 +170,10 @@ static void start_process (void *file_name_)
     thread_exit ();
   }
 
-  sema_up(&t->parent->load_sema);
+  // sema_up(&t->parent->load_sema);
+  sema_up(&t->load_sema);
 
-  free(fn_copy);
+  free(cmdline_copy);
   
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
