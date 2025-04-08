@@ -41,15 +41,15 @@ void sys_close(struct intr_frame* f);
 
 static void (*syscalls[MAX_SYSCALL])(struct intr_frame *) = {
   [SYS_HALT] = sys_halt,
-  // [SYS_EXIT] = sys_exit,
+  [SYS_EXIT] = sys_exit,
   // [SYS_EXEC] = sys_exec,
-  [SYS_WAIT] = sys_wait,
+  // [SYS_WAIT] = sys_wait,
   // [SYS_CREATE] = sys_create,
   // [SYS_REMOVE] = sys_remove,
   // [SYS_OPEN] = sys_open,
   // [SYS_FILESIZE] = sys_filesize,
   // [SYS_READ] = sys_read,
-  // [SYS_WRITE] = sys_write,
+  [SYS_WRITE] = sys_write,
   // [SYS_SEEK] = sys_seek,
   // [SYS_TELL] = sys_tell,
   // [SYS_CLOSE] = sys_close
@@ -73,18 +73,18 @@ void sys_halt(void)
 
 static void syscall_handler (struct intr_frame *f UNUSED) 
 {
-  printf ("system call!\n");
+  // printf ("system call!\n");
   int syscall_num = *(int *) f->esp;
 
   switch (syscall_num)
   {
   case SYS_WRITE:
-    printf("DEBUG: syscall_number = %d\n", syscall_num);
+    // printf("DEBUG: syscall_number = %d\n", syscall_num);
     sys_write(f);
     break;
   
   default:
-    printf("DEBUG: Unknown system call: %d\n", syscall_num);
+    // printf("DEBUG: Unknown system call: %d\n", syscall_num);
     thread_exit();
   }
 }
@@ -106,22 +106,24 @@ struct write_args {
 };
 
 void sys_write(struct intr_frame* f){
-  struct write_args *args = (struct write_args *) f->esp;
-  printf("DEBUG: sys_write called with fd=%d, buffer=%p, size=%d\n", 
-           args->fd, args->buffer, args->size);
+  int fd = *((int *) f->esp + 1);
+  const void *buffer = (void *) *((int *) f->esp + 2);
+  unsigned size = *((unsigned *) f->esp + 3);
+  // printf("DEBUG: sys_write called with fd=%d, buffer=%p, size=%u\n", 
+    // fd, buffer, size);
 
-  if (!is_user_vaddr(args->buffer)) {
+  if (!is_user_vaddr(buffer)) {
     f->eax = -1;
     return;
   }
-  if (args->fd == 1){
-    putbuf(args->buffer, args->size);  // 輸出到 Pintos console
-    f->eax = args->size;  // 回傳成功寫入的位元組數量
+
+  if (fd == 1){
+    putbuf(buffer, size);  // 輸出到 Pintos console
+    f->eax = size;         // 回傳成功寫入的位元組數量
     return;
   }
 
-  // f->eax = file_write(args->fd, args->buffer, args->size);
-  printf("DEBUG: invalid fd %d\n", args->fd);
+  // printf("DEBUG: invalid fd %d\n", fd);
   f->eax = -1;
   return;
 }
