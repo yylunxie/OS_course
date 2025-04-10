@@ -5,6 +5,7 @@
 #include <list.h>
 #include <stdint.h>
 #include "threads/synch.h"
+#include "filesys/file.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -81,8 +82,19 @@ typedef int tid_t;
    only because they are mutually exclusive: only a thread in the
    ready state is on the run queue, whereas only a thread in the
    blocked state is on a semaphore wait list. */
+
+   // struct file_descriptor 
+   // {
+   //    int fd;                 /* 檔案描述符編號 */
+   //    struct file *file;      /* 指向檔案的指針 */
+   //    struct list_elem elem;  /* 用於鏈表 */
+   // };
 struct thread
   {
+   /* File descriptor table. */
+    #define MAX_FD 128
+    struct file *fd_table[MAX_FD];
+    
     /* Owned by thread.c. */
     tid_t tid;                          /* Thread identifier. */
     enum thread_status status;          /* Thread state. */
@@ -98,6 +110,9 @@ struct thread
 
     struct semaphore load_sema;
     struct thread *parent;          /* Pointer to parent thread */
+
+   //  struct list file_descriptors;   /* 檔案描述符列表 */
+   //  int next_fd;                    /* 下一個可用的檔案描述符編號 */
 
 #ifdef USERPROG
 // #warning "USERPROG is defined!"

@@ -28,7 +28,7 @@ pintos --qemu --filesys-size=2 -- -q -f run 'echo hello'
 
 ```bash
 pintos --qemu --filesys-size=2 -p ./tests/userprog/args-none -a args-none -- -q -f run 'args-none'
-pintos --qemu --filesys-size=2 -p ./tests/userprog/args-many -a args-many -- -q -f run 'args-many'
+pintos --qemu --filesys-size=2 -p ./tests/userprog/args-many -a args-many -- -q -f run 'args-many a b c d e f g h i j k l m n o p q r s t u v'
 pintos --qemu --filesys-size=2 -p ./tests/userprog/args-multiple -a args-multiple -- -q -f run 'args-multiple'
 pintos --qemu --gdb --filesys-size=2 -p ./tests/userprog/args-none -a args-none -- -q -f run 'args-none'
 

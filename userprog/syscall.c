@@ -92,6 +92,9 @@ static void syscall_handler (struct intr_frame *f UNUSED)
   case SYS_CREATE:
     sys_create(f);
     break;
+  case SYS_OPEN:
+    sys_open(f);
+    break;
   
   default:
     // printf("DEBUG: Unknown system call: %d\n", syscall_num);
@@ -108,12 +111,6 @@ void sys_exit(struct intr_frame* f)
   thread_exit();
 }
 
-struct write_args {
-  int fd;
-  const void *buffer;
-  unsigned size;
-};
-
 void sys_write(struct intr_frame* f){
   int fd = *(int *)(f->esp + 4);
   const char *buffer = *(char **)(f->esp + 8);
@@ -121,19 +118,41 @@ void sys_write(struct intr_frame* f){
 
   // printf("sys_write: fd=%d, buffer=%p, size=%u\n", fd, buffer, size);
 
-  if (!is_user_vaddr(buffer)) {
+  if (!is_user_vaddr(buffer) || !is_user_vaddr(buffer + size - 1)) {
     f->eax = -1;
+    thread_exit();  // 如果訪問無效記憶體，應終止進程
     return;
   }
 
   if (fd == 1) { // stdout
     putbuf(buffer, size);
     f->eax = size;
-  } else {
-    // printf("sys_write: invalid fd=%d\n", fd);
+  } 
+
+  if (fd == 0) {
     f->eax = -1;
+    return;
   }
-  
+
+  if (fd >= 2 && fd < MAX_FD) {
+    struct thread *cur_thread = thread_current();
+    struct file *file = cur_thread->fd_table[fd];
+
+    if (file == NULL) {
+      f->eax = -1;  // 如果找不到對應的檔案，返回錯誤
+      return;
+    }
+    
+    // 使用 file_write 函數寫入檔案
+    int bytes_written = file_write(file, buffer, size);
+    if (bytes_written < 0) {
+      f->eax = -1;  // 寫入失敗，返回錯誤
+    } else {
+      f->eax = bytes_written;  // 返回成功寫入的字節數
+    }
+    return;
+  }
+
 
   // printf("DEBUG: invalid fd %d\n", fd);
   f->eax = -1;
@@ -184,4 +203,59 @@ void sys_create(struct intr_frame *f) {
   // printf("DEBUG: filesys_create returned %d\n", success);
 
   f->eax = success;
+}
+
+void sys_open(struct intr_frame* f) {
+  const char *user_filename = *(char **)(f->esp + 4);
+
+  // 1. 驗證 user space 指標是否合法
+  if (user_filename == NULL ||
+      !is_user_vaddr(user_filename) ||
+      pagedir_get_page(thread_current()->pagedir, user_filename) == NULL) {
+    f->eax = -1;
+    return;
+  }
+
+  // 2. 複製 filename 到 kernel buffer（最多複製 127 字元）
+  char kernel_filename[128];
+  size_t i;
+  for (i = 0; i < sizeof(kernel_filename) - 1; i++) {
+    if (!is_user_vaddr(user_filename + i) ||
+        pagedir_get_page(thread_current()->pagedir, user_filename + i) == NULL) {
+      f->eax = -1;
+      return;
+    }
+    kernel_filename[i] = user_filename[i];
+    if (kernel_filename[i] == '\0') break;
+  }
+  kernel_filename[sizeof(kernel_filename) - 1] = '\0';
+
+  if (i == sizeof(kernel_filename) - 1) {
+    f->eax = -1;
+    return;
+  }
+
+  // 3. 開啟檔案
+  lock_acquire(&filesys_lock);
+  struct file *file = filesys_open(kernel_filename);
+  lock_release(&filesys_lock);
+
+  if (file == NULL) {
+    f->eax = -1;
+    return;
+  }
+
+  // 4. 找空的 fd slot，從 2 開始（0: stdin, 1: stdout）
+  struct thread *t = thread_current();
+  for (int fd = 2; fd < 128; fd++) {
+    if (t->fd_table[fd] == NULL) {
+      t->fd_table[fd] = file;
+      f->eax = fd;
+      return;
+    }
+  }
+
+  // 5. 找不到 slot，關掉 file
+  file_close(file);
+  f->eax = -1;
 }

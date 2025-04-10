@@ -90,8 +90,10 @@ static tid_t allocate_tid (void);
 void
 thread_init (void) 
 {
-  ASSERT (intr_get_level () == INTR_OFF);
-
+  // ASSERT (intr_get_level () == INTR_OFF);
+  // for (int i = 0; i < MAX_FD; i++) {
+  //   t->fd_table[i] = NULL;
+  // }
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
@@ -487,6 +489,12 @@ init_thread (struct thread *t, const char *name, int priority)
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);
   sema_init (&t->load_sema, 0);
+  /* 初始化文件描述符表 */
+  for (int i = 0; i < 128; i++)
+    t->fd_table[i] = NULL;
+  /* (Deprecated) 初始化檔案描述符列表 */
+  // list_init (&t->file_descriptors);
+  // t->next_fd = 2;
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
@@ -602,3 +610,68 @@ allocate_tid (void)
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
+
+/* (Deprecated) 查找檔案描述符的函數（可以放在 thread.c 或另一個適當的檔案中） */
+// struct file_descriptor *
+// find_file_descriptor (int fd)
+// {
+//   struct thread *t = thread_current ();
+//   struct list_elem *e;
+  
+//   for (e = list_begin (&t->file_descriptors); 
+//        e != list_end (&t->file_descriptors); 
+//        e = list_next (e)) 
+//   {
+//     struct file_descriptor *file_desc = list_entry (e, struct file_descriptor, elem);
+//     if (file_desc->fd == fd)
+//       return file_desc;
+//   }
+  
+//   return NULL;
+// }
+
+/* (Deprecated) 添加檔案描述符的函數 */
+// int 
+// add_file_descriptor (struct file *file)
+// {
+//   struct thread *t = thread_current ();
+//   struct file_descriptor *fd_entry = malloc (sizeof (struct file_descriptor));
+  
+//   if (fd_entry == NULL)
+//     return -1;  /* 記憶體分配失敗 */
+  
+//   fd_entry->fd = t->next_fd++;
+//   fd_entry->file = file;
+//   list_push_back (&t->file_descriptors, &fd_entry->elem);
+  
+//   return fd_entry->fd;
+// }
+
+/* (Deprecated) 關閉和移除檔案描述符 */
+// void
+// close_file_descriptor (int fd)
+// {
+//   struct file_descriptor *fd_entry = find_file_descriptor (fd);
+  
+//   if (fd_entry != NULL) {
+//     file_close (fd_entry->file);
+//     list_remove (&fd_entry->elem);
+//     free (fd_entry);
+//   }
+// }
+
+/* (Deprecated) 在進程結束時清理所有檔案描述符 */
+// void
+// close_all_file_descriptors (void)
+// {
+//   struct thread *t = thread_current ();
+//   struct list_elem *e, *next;
+  
+//   for (e = list_begin (&t->file_descriptors); e != list_end (&t->file_descriptors); e = next) {
+//     next = list_next (e);
+//     struct file_descriptor *fd_entry = list_entry (e, struct file_descriptor, elem);
+//     file_close (fd_entry->file);
+//     list_remove (&fd_entry->elem);
+//     free (fd_entry);
+//   }
+// }
